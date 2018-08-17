@@ -251,15 +251,15 @@ int kvinEatWS(KVINParser* kp, const char** cur)
 
 int kvinCIdentifier(const char** cur, const char* lst)
 {
-    if ((('a' <= **cur) && (**cur < 'z'))   ||
-        (('A' <= **cur) && (**cur < 'Z'))   ||
+    if ((('a' <= **cur) && (**cur <= 'z'))  ||
+        (('A' <= **cur) && (**cur <= 'Z'))  ||
         (**cur == '_')                      ||
         0)
     {
         while ( (*cur < lst)                        &&
-               ((('a' <= **cur) && (**cur < 'z'))   ||
-                (('A' <= **cur) && (**cur < 'Z'))   ||
-                (('0' <= **cur) && (**cur < '9'))   ||
+               ((('a' <= **cur) && (**cur <= 'z'))  ||
+                (('A' <= **cur) && (**cur <= 'Z'))  ||
+                (('0' <= **cur) && (**cur <= '9'))  ||
                 (**cur == '_')                      ||
                 0))
         {
