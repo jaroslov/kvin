@@ -391,6 +391,7 @@ int kvinLongFloat(const char** fst, const char* lst, long double* lfloat)
     }
     if (cur >= lst) return 0;
 
+    int floatLike                   = 0;
     do
     {
         if (!kvinNumber(&cur, lst, &integral, &radix, 0))
@@ -403,11 +404,11 @@ int kvinLongFloat(const char** fst, const char* lst, long double* lfloat)
             break;
         }
 
-        if (*cur != '.')
+        if (*cur == '.')
         {
-            break;
+            ++cur;
+            floatLike               = 1;
         }
-        ++cur;
 
         if (!kvinNumber(&cur, lst, &fractional, &radix, &numLimbs))
         {
@@ -419,6 +420,7 @@ int kvinLongFloat(const char** fst, const char* lst, long double* lfloat)
             0)
         {
             ++cur;
+            floatLike               = 1;
         }
         else
         {
@@ -467,7 +469,7 @@ int kvinLongFloat(const char** fst, const char* lst, long double* lfloat)
     *lfloat         = X;
     *fst            = cur;
 
-    return 1;
+    return floatLike;
 }
 
 int kvinParseStep(KVINParser* kp)
@@ -586,8 +588,22 @@ int kvinParseStep(KVINParser* kp)
             return 1;
         }
         else
-        if ((kp->event == KVINE_PATH)   ||
-            (kp->event == KVINE_PARENT) ||
+        if (isVal)
+        {
+            kp->event       = KVINE_AXIS_INDEX;
+            kp->action[0]   = KVINA_GET_ROOT;
+            kp->action[1]   = KVINA_SET_AXIS;
+            return 1;
+        }
+        else
+        if (kp->event == KVINE_PATH)
+        {
+            kp->event       = KVINE_AXIS_INDEX;
+            kp->action[0]   = KVINA_SET_AXIS;
+            return 1;
+        }
+        else
+        if ((kp->event == KVINE_PARENT) ||
             isAxis                      ||
             0)
         {
