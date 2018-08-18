@@ -8,6 +8,22 @@
 #include <string>
 #include <vector>
 
+struct ISKey
+{
+    bool        isIdx;
+    uint64_t    Index;
+    std::string Name;
+};
+
+bool operator< (ISKey const& L, ISKey const& R)
+{
+    if (L.isIdx != R.isIdx) return true;
+    return  (L.isIdx)
+        ?   (L.Index < R.Index)
+        :   (L.Name < R.Name)
+        ;
+}
+
 struct Kvin
 {
     enum
@@ -18,7 +34,6 @@ struct Kvin
         eStr,
         eCID,
         eRef,
-        eArray,
         eObject,
     } Type;
     Kvin                       *Parent;
@@ -26,8 +41,7 @@ struct Kvin
     double                      Real;
     std::string                 Str;
     Kvin                       *Ref;
-    std::vector<Kvin>           Array;
-    std::map<std::string, Kvin> Object;
+    std::map<ISKey, Kvin>       Object;
     Kvin()
     : Type(eNone)
     , Parent(0)
@@ -35,7 +49,6 @@ struct Kvin
     , Real(0)
     , Str()
     , Ref(0)
-    , Array()
     , Object()
     {
         this->Type      = eObject;
@@ -79,14 +92,16 @@ int ktSetAxis(void* handle, KVINParser* P)
     fprintf(stdout, "%s : %.*s\n", "SetAxis", (int)(P->end - P->beg), P->beg);
     if (P->event == KVINE_AXIS_NAME)
     {
-        mob.cAxis       = std::string(P->beg, P->end);
-        mob.isCIDAxis   = false;
+        mob.cAxis           = std::string(P->beg, P->end);
+        mob.isCIDAxis       = false;
+        mob.current->Type   = Kvin::eObject;
     }
     else
     if (P->event == KVINE_AXIS_INDEX)
     {
-        mob.iAxis       = P->number;
-        mob.isCIDAxis   = true;
+        mob.iAxis           = P->number;
+        mob.isCIDAxis       = true;
+        mob.current->Type   = Kvin::eObject;
     }
     return 1;
 }
@@ -98,17 +113,13 @@ int ktSetObject(void* handle, KVINParser*)
     Kvin* obj           = nullptr;
     if (mob.isCIDAxis)
     {
-        if (mob.current->Array.size() <= mob.iAxis)
-        {
-            mob.current->Array.resize(mob.iAxis+1);
-        }
-        obj             = &mob.current->Array[mob.iAxis];
+        obj             = &mob.current->Object[ISKey{.isIdx=true, .Index=mob.iAxis, .Name=""}];
     }
     else
     {
-        obj             = &mob.current->Object[mob.cAxis];
+        obj             = &mob.current->Object[ISKey{.isIdx=false, .Index=0, .Name=mob.cAxis}];
     }
-    obj->Type           = mob.isCIDAxis ? Kvin::eArray : Kvin::eObject;
+    obj->Type           = Kvin::eObject;
     obj->Parent         = mob.current;
     mob.current         = obj;
     return 1;
@@ -121,11 +132,11 @@ int ktSetValue(void* handle, KVINParser* P)
     Kvin* val       = nullptr;
     if (mob.isCIDAxis)
     {
-        val         = &mob.current->Array[mob.iAxis];
+        val         = &mob.current->Object[ISKey{.isIdx=true, .Index=mob.iAxis, .Name=""}];
     }
     else
     {
-        val         = &mob.current->Object[mob.cAxis];
+        val         = &mob.current->Object[ISKey{.isIdx=false, .Index=0, .Name=mob.cAxis}];
     }
     switch (P->event)
     {
@@ -170,30 +181,32 @@ void Dump(Kvin const& node, std::string pre="")
     case Kvin::eRef     :
         fprintf(stdout, "%s = %s\n", pre.c_str(), node.Str.c_str());
         break;
-    case Kvin::eArray   :
-        {
-            for (int AA = 0; AA < (int)node.Array.size(); ++AA)
-            {
-                std::string path    = pre;
-                int len             = snprintf(0, 0, "[%d]", AA);
-                char feh[len+1];
-                sprintf(&feh[0], "[%d]", AA);
-                path                += feh;
-                Dump(node.Array[AA], path);
-            }
-        }
-        break;
     case Kvin::eObject  :
         {
             for (auto const& item : node.Object)
             {
                 std::string path    = pre;
-                int len             = snprintf(0, 0, "%s", item.first.c_str());
-                char feh[len+1];
-                sprintf(&feh[0], "%s", item.first.c_str());
-                if (!path.empty())
+                int len             = 0;
+                if (item.first.isIdx)
                 {
-                    path            += ".";
+                    len             = snprintf(0, 0, "[%llu]", item.first.Index);
+                }
+                else
+                {
+                    len             = snprintf(0, 0, "%s", item.first.Name.c_str());
+                }
+                char feh[len+1];
+                if (item.first.isIdx)
+                {
+                    sprintf(&feh[0], "[%llu]", item.first.Index);
+                }
+                else
+                {
+                    sprintf(&feh[0], "%s", item.first.Name.c_str());
+                    if (!path.empty())
+                    {
+                        path            += ".";
+                    }
                 }
                 path                += feh;
                 Dump(item.second, path);
@@ -220,16 +233,17 @@ int main(int argc, char *argv[])
         .SetValue   = &ktSetValue,
     };
     const char K[]  =
-        "foo.bar    = 10\n"
-        "   .baz    = 12\n"
-        "   .quux.A = 1100\n"
-        "        .B = 1003\n"
-        "        .C = 1004\n"
-        "  ..bloggl = 5001\n"
-        //"[0] = 101\n"
-        //"        [1] = 102\n"
-        //"        [2] = 1020\n"
-        //"        [3] = 112\n"
+        "foo.bar        = 10\n"
+        "   .baz        = 12\n"
+        "   .quux.A     = 1100\n"
+        "        .B     = 1003\n"
+        "        .C     = 1004\n"
+        "  ..bloggl     = 5001\n"
+        "foo.zuul[0]    = 1000\n"
+        "       .[1]    = 102\n"
+        "       .[2]    = 1020\n"
+        "       .[3]    = 112\n"
+        "       .lives  = 3005\n"
         ;
     if (!kvinInit(&P, K, K + sizeof(K)))
     {
