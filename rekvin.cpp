@@ -104,6 +104,11 @@ int main(int argc, char *argv[])
         { KVIN_PAR_ERROR,   "baz = 10 = 12\n" },
 
         { KVIN_PAR_ERROR,   "baz = 10 12 = bob\n" },
+
+        { KVIN_PAR_DONE,    "foo = bar // bob\n"
+                            "\n"
+                            "// james\n"
+                            "tim = jackson // hole\n" },
     };
 
     int numExpPassed    = 0;
