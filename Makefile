@@ -4,8 +4,8 @@ MAKEFLAGS	+=	--no-builtin-rules
 
 all		: kvin
 
-kvin	: kvin.h kvin.c
-	cc -std=c11 -Wall -Werror -g kvin.c -o kvin
+kvin	: rekvin.h rekvin.cpp
+	c++ -std=c++11 -Wall -Werror -g -I. rekvin.cpp -o kvin
 
 clean	:
 	rm -f kvin

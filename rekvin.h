@@ -29,12 +29,20 @@ extern "C" {
     X(DONE)
 
 #define KVIN_ACTION_TABLE(X)    \
+    X(NONE)                     \
+    X(ERROR)                    \
     X(SETATROOT)                \
     X(SETNEXTAXIS)              \
     X(RELPATH)                  \
     X(AUTONUMBER)               \
     X(SETVALUE)                 \
-    X(NONE)
+    X(DONE)
+
+#define KVIN_VALUE_TABLE(X)     \
+    X(IDENTIFIER)               \
+    X(INTEGER)                  \
+    X(REAL)                     \
+    X(BSTRING)
 
 typedef enum KVIN_LEXEME
 {
@@ -63,6 +71,30 @@ KVIN_ACTION_TABLE(KVIN_ACTION_ENTRY)
     KVIN_ACT_MAX,
 } KVIN_ACTION;
 
+typedef enum KVIN_VALUE
+{
+#undef  KVIN_VALUE_ENTRY
+#define KVIN_VALUE_ENTRY(NAME) KVIN_VAL_ ## NAME,
+KVIN_VALUE_TABLE(KVIN_VALUE_ENTRY)
+#undef  KVIN_VALUE_ENTRY
+    KVIN_VAL_MAX,
+} KVIN_VALUE;
+
+typedef struct KVINValue
+{
+    KVIN_VALUE      type;
+    union
+    {
+        struct
+        {
+            const char     *begin;
+            const char     *end;
+        };
+        unsigned long long  integer;
+        long double         real;
+    };
+} KVINValue;
+
 typedef struct KVINLexer
 {
     KVIN_LEXEME     lex;
@@ -78,22 +110,36 @@ typedef struct KVINParser
     KVIN_PARSES     state;
     KVIN_ACTION     action;
     KVINLexer       lexer;
-    union
-    {
-        struct
-        {
-            const char     *begin;
-            const char     *end;
-        };
-        unsigned long long  integer;
-        long double         real;
-    } value;
+    KVINValue       value;
 } KVINParser;
+
+typedef int   (*kvinSetAtRootFptr)      (void* handle, KVINValue);
+typedef int   (*kvinSetNextAxisFptr)    (void* handle, KVINValue);
+typedef int   (*kvinRelPathFptr)        (void* handle);
+typedef int   (*kvinAutonumberFptr)     (void* handle);
+typedef int   (*kvinSetValueFptr)       (void* handle, KVINValue);
+typedef int   (*kvinErrorFptr)          (void* handle, KVINParser*);
+typedef int   (*kvinDoneFptr)           (void* handle);
+
+typedef struct KVINActor
+{
+    KVINParser              parser;
+    void                   *handle;
+    kvinSetAtRootFptr       SetAtRoot;
+    kvinSetNextAxisFptr     SetNextAxis;
+    kvinRelPathFptr         RelPath;
+    kvinAutonumberFptr      Autonumber;
+    kvinSetValueFptr        SetValue;
+    kvinErrorFptr           Error;
+    kvinDoneFptr            Done;
+} KVINActor;
 
 int kvinInitLex(KVINLexer* lex, const char* fst, const char* lst);
 int kvinLexNext(KVINLexer*);
 int kvinInitParser(KVINParser* prs, const char* fst, const char* lst);
 int kvinParseNext(KVINParser*);
+int kvinParseNextCB(KVINActor*);
+int kvinParse(KVINActor*);
 
 #ifdef  __cplusplus
 } // extern "C".
@@ -101,12 +147,11 @@ int kvinParseNext(KVINParser*);
 
 #endif//REKVIN_H
 
-
-#define REKVIN_C
-
 #ifdef  REKVIN_C
 
-#include <stdio.h>
+#ifndef REKVIN_NO_STDLIB
+
+#include <ctype.h>
 #include <stdlib.h>
 
 #ifdef  __cplusplus
@@ -119,27 +164,24 @@ extern "C" {
 
 static int kvin_isspace(const char c)
 {
-    return (c == ' ')
-        || (c == '\t')
-        || (c == '\n')
-        || (c == '\v')
-        || (c == '\f')
-        || 0
-        ;
+    return isspace(c);
 }
 
 static int kvin_isalpha(const char c)
 {
-    return  (('a' <= c) && (c <= 'z')) ||
-            (('A' <= c) && (c <= 'Z')) ||
-            0;
+    return isalpha(c);
 }
 
 static int kvin_isdigit(const char c)
 {
-    return  (('0' <= c) && (c <= '9')) ||
-            0;
+    return isdigit(c);
 }
+
+#else// REKVIN_NO_STDLIB
+
+// XXX: You've got a lot of definin' to do.
+
+#endif//REKVIN_NO_STDLIB
 
 static int kvin_iscid(const char c)
 {
@@ -148,7 +190,7 @@ static int kvin_iscid(const char c)
 
 static int kvin_iscidn(const char c)
 {
-    return kvin_isalpha(c) || kvin_isdigit(c) || (c == '_');
+    return kvin_iscid(c) || kvin_isdigit(c);
 }
 
 int kvinInitLex(KVINLexer* lex, const char* fst, const char* lst)
@@ -393,13 +435,16 @@ static int pkvinValue(KVINParser* prs)
     switch (prs->lexer.lex)
     {
     case KVIN_LEX_IDENTIFIER    :
+        prs->value.type         = KVIN_VAL_IDENTIFIER;
         prs->value.begin        = prs->lexer.lbeg;
         prs->value.end          = prs->lexer.lend;
         break;
     case KVIN_LEX_NUMBERLIKE    :
+        prs->value.type         = KVIN_VAL_INTEGER;
         prs->value.integer      = strtoull(prs->lexer.lbeg, 0, 0);
         break;
     case KVIN_LEX_BSTRING       :
+        prs->value.type         = KVIN_VAL_BSTRING;
         prs->value.begin        = prs->lexer.lbeg + 1;
         prs->value.end          = prs->lexer.lend - 1;
         break;
@@ -413,13 +458,6 @@ static int pkvinReset(KVINParser* prs)
     prs->state      = KVIN_PAR_INITIAL;
     return 1;
 }
-
-//static int pkvinFuck(KVINParser* prs)
-//{
-//    fprintf(stdout, "FUCK %d\n", prs->lexer.lex);
-//    prs->state      = KVIN_PAR_ERROR;
-//    return 0;
-//}
 
 static KVINParse kvinParseTable[KVIN_LEX_MAX][KVIN_PAR_MAX] =
 {
@@ -447,10 +485,12 @@ int kvinParseNext(KVINParser* prs)
         if ((prs->state != KVIN_PAR_INITIAL) && (prs->state != KVIN_PAR_EOL))
         {
             prs->state  = KVIN_PAR_ERROR;
+            prs->action = KVIN_ACT_ERROR;
         }
         else
         {
             prs->state  = KVIN_PAR_DONE;
+            prs->action = KVIN_ACT_DONE;
         }
         return 0;
     }
@@ -458,154 +498,43 @@ int kvinParseNext(KVINParser* prs)
     return kvinParseTable[prs->lexer.lex][prs->state](prs);
 }
 
+int kvinParseNextCB(KVINActor* act)
+{
+    kvin_assert(act);
+
+    int result  = kvinParseNext(&act->parser);
+
+    switch (act->parser.action)
+    {
+    case KVIN_ACT_NONE          :                                                   break;
+    case KVIN_ACT_ERROR         : act->Error(act->handle, &act->parser);            break;
+    case KVIN_ACT_SETATROOT     : act->SetAtRoot(act->handle, act->parser.value);   break;
+    case KVIN_ACT_SETNEXTAXIS   : act->SetNextAxis(act->handle, act->parser.value); break;
+    case KVIN_ACT_RELPATH       : act->RelPath(act->handle);                        break;
+    case KVIN_ACT_AUTONUMBER    : act->Autonumber(act->handle);                     break;
+    case KVIN_ACT_SETVALUE      : act->SetValue(act->handle, act->parser.value);    break;
+    case KVIN_ACT_DONE          : act->Done(act->handle);                           break;
+    default                     :
+        result = 0;
+        act->parser.state       = KVIN_PAR_ERROR;
+        break;
+    }
+
+    return result;
+}
+
+int kvinParse(KVINActor* act)
+{
+    kvin_assert(act);
+
+    while (kvinParseNextCB(act))
+    {
+    }
+
+    return (act->parser.state == KVIN_PAR_DONE);
+}
+
 #ifdef  __cplusplus
 } // extern "C".
 #endif//__cplusplus
 #endif//REKVIN_C
-
-#include <stdio.h>
-#include <string.h>
-
-const char* sPARSES[] =
-{
-#undef  KVIN_PARSES_ENTRY
-#define KVIN_PARSES_ENTRY(NAME) # NAME,
-KVIN_PARSES_TABLE(KVIN_PARSES_ENTRY)
-#undef  KVIN_PARSES_ENTRY
-};
-
-const char* sACTION[] =
-{
-#undef  KVIN_ACTION_ENTRY
-#define KVIN_ACTION_ENTRY(NAME) # NAME,
-KVIN_ACTION_TABLE(KVIN_ACTION_ENTRY)
-#undef  KVIN_ACTION_ENTRY
-};
-
-void printLexeme(KVINLexer* lexer)
-{
-    fprintf(stdout, "'%.*s'", (int)(lexer->lend - lexer->lbeg), lexer->lbeg);
-}
-
-int main(int argc, char *argv[])
-{
-    const char* EXS[]   =
-    {
-
-        "bar        = \"baz\"",
-
-        "foo        = 10",
-
-        "foo.bar    = baz",
-
-        "foo.bar    = baz\n"
-        "foo.baz    = 12",
-
-        "foo.bar    = baz\n"
-        "foo.baz    = \"asd;lkjasdf;laksjdfas\\\"\"",
-
-        "foo.bar    = 10\n"
-        "   .baz    = 12\n",
-
-        "foo.10     = A\n"
-        "   .11     = B\n",
-
-        "10         = A\n"
-        "11         = B",
-
-        "10.10.99.101 = my_ip_address",
-
-        "A = B\n"
-        "C = D\n"
-        "E = F\n"
-        "G = H\n",
-
-        "fooddd.bar.baz.bob = 10\n"
-        "    ...quux        = 12\n"
-        "      .dob.baz.bob = 13\n"
-        "    ...quux2.feh   = 12\n",
-
-        "foo.12 = A\n"
-        "   .#  = B\n"
-        "   .#  = C\n"
-        "   .#  = D\n",
-
-        "0      = 10\n"
-        "[0]    = 10\n",
-
-        "foo[3] = 10\n",
-
-        "foo.bar        = 10\n"
-        "   .baz        = 12\n"
-        "   .quux.A     = 1100\n"
-        "        .B     = 1003\n"
-        "        .C     = 1004\n"
-        "  ..bloggl     = 5001\n"
-        "foo.zuul[0]    = 1000\n"
-        "       .[1]    = 102\n"
-        "       .[2]    = 1020\n"
-        "       .[3]    = 112\n"
-        "       .lives  = 3005\n",
-
-        "# = 10\n",
-
-        "## = 12\n",
-
-        "10 10 = 12\n",
-
-        "foo 10 = 12\n",
-
-        "bar =\n",
-
-        "bar = = 10\n",
-
-        "baz = 10 = 12\n",
-
-        "baz = 10 12 = bob\n"
-    };
-
-    for (int EE = 0; EE < (int)sizeof(EXS)/sizeof(EXS[0]); ++EE)
-    {
-        KVINParser parser   = { };
-        kvinInitParser(&parser, EXS[EE], EXS[EE] + (int)strlen(EXS[EE]));
-
-        fprintf(stdout, "%s\n", EXS[EE]);
-        do
-        {
-            switch (parser.action)
-            {
-            case KVIN_ACT_SETATROOT     :
-            case KVIN_ACT_SETNEXTAXIS   :
-                fprintf(stdout, "    %s ", sACTION[parser.action]);
-                if (parser.lexer.lex == KVIN_LEX_IDENTIFIER)
-                {
-                    fprintf(stdout, "%.*s\n", (int)(parser.value.end - parser.value.begin), parser.value.begin);
-                }
-                else
-                {
-                    fprintf(stdout, "%lld\n", parser.value.integer);
-                }
-                break;
-            case KVIN_ACT_AUTONUMBER    :
-            case KVIN_ACT_RELPATH       :
-                fprintf(stdout, "    %s\n", sACTION[parser.action]);
-                break;
-            case KVIN_ACT_SETVALUE      :
-                fprintf(stdout, "    %s ", sACTION[parser.action]);
-                switch (parser.lexer.lex)
-                {
-                case KVIN_LEX_IDENTIFIER    : fprintf(stdout, "%.*s\n", (int)(parser.value.end - parser.value.begin), parser.value.begin); break;
-                case KVIN_LEX_NUMBERLIKE    : fprintf(stdout, "%lld\n", parser.value.integer); break;
-                case KVIN_LEX_BSTRING       : fprintf(stdout, "'%.*s'\n", (int)(parser.value.end - parser.value.begin), parser.value.begin); break;
-                default                     : fprintf(stdout, "??%s\n", "?");
-                }
-            case KVIN_ACT_NONE          : break;
-            default                     : break;
-            }
-        }
-        while (kvinParseNext(&parser));
-        fprintf(stdout, "    %s\n", sPARSES[parser.state]);
-    }
-
-    return 0;
-}
