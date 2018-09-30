@@ -471,7 +471,7 @@ static KVINParse kvinParseTable[KVIN_LEX_MAX][KVIN_PAR_MAX] =
     /* BSTRING    */    {   pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinValue,     pkvinError,     pkvinDone       },
     /* LBRACKET   */    {   pkvinError,     pkvinAbsPath,   pkvinPath,      pkvinPath,      pkvinError,     pkvinPath,      pkvinError,     pkvinError,     pkvinDone       },
     /* RBRACKET   */    {   pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinDone       },
-    /* EOL        */    {   pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinReset,     pkvinDone       },
+    /* EOL        */    {   pkvinError,     pkvinReset,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinError,     pkvinReset,     pkvinDone       },
 };
 
 int kvinParseNext(KVINParser* prs)

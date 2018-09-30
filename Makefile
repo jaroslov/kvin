@@ -2,10 +2,11 @@ MAKEFLAGS	+=	--no-builtin-rules
 .PHONY		: all clean
 .SUFFIXES	:
 
-all		: kvin
+all			: ./bin/kvin
 
-kvin	: rekvin.h rekvin.cpp
-	c++ -std=c++11 -Wall -Werror -g -I. rekvin.cpp -o kvin
+./bin/kvin	: rekvin.h rekvin.cpp
+	@if [ ! -d ./bin ]; then mkdir -p ./bin; fi;
+	c++ -std=c++11 -Wall -Werror -g -I. rekvin.cpp -o ./bin/kvin
 
-clean	:
-	rm -f kvin
+clean		:
+	rm -rf ./bin/kvin

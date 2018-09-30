@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
 {
     static const TEST EXS[] =
     {
+#if 0
         { KVIN_PAR_DONE,    "bar        = \"baz\"" },
 
         { KVIN_PAR_DONE,    "foo        = 10" },
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
         { KVIN_PAR_ERROR,   "baz = 10 = 12\n" },
 
         { KVIN_PAR_ERROR,   "baz = 10 12 = bob\n" },
-
+#endif
         { KVIN_PAR_DONE,    "foo = bar // bob\n"
                             "\n"
                             "// james\n"
