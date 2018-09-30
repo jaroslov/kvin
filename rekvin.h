@@ -42,7 +42,8 @@ extern "C" {
     X(IDENTIFIER)               \
     X(INTEGER)                  \
     X(REAL)                     \
-    X(BSTRING)
+    X(BSTRING)                  \
+    X(NONE)
 
 typedef enum KVIN_LEXEME
 {
@@ -193,6 +194,21 @@ static int kvin_iscidn(const char c)
     return kvin_iscid(c) || kvin_isdigit(c);
 }
 
+static int kvin_iscidnd(const char c)
+{
+    return kvin_iscidn(c) || (c == '.') || (c == '-') || (c == '+');
+}
+
+static int kvin_strtoull(const char* str, char** str_end, int base)
+{
+    return strtoull(str, str_end, base);
+}
+
+static long double kvin_strtold(const char* str, char** str_end)
+{
+    return strtold(str, str_end);
+}
+
 int kvinInitLex(KVINLexer* lex, const char* fst, const char* lst)
 {
     kvin_assert(lex);
@@ -312,9 +328,9 @@ int kvinLexNext(KVINLexer* lex)
         return 1;
     }
 
-    if (kvin_isdigit(*lex->lend))
+    if (kvin_iscidnd(*lex->lend))
     {
-        while ((lex->lend < lex->end) && kvin_iscidn(*lex->lend))
+        while ((lex->lend < lex->end) && kvin_iscidnd(*lex->lend))
         {
             ++lex->lend;
         }
@@ -334,6 +350,24 @@ int kvinInitParser(KVINParser* prs, const char* fst, const char* lst)
 }
 
 typedef int (*KVINParse)    (KVINParser* prs);
+
+static KVIN_VALUE pkvinAnalyzeNumberLike(const char* beg, const char* end, unsigned long long* integer, long double* real)
+{
+    char* last              = 0;
+    unsigned long long ull  = kvin_strtoull(beg, &last, 0);
+    if (last == end)
+    {
+        *integer            = ull;
+        return KVIN_VAL_INTEGER;
+    }
+    long double ld          = kvin_strtold(beg, &last);
+    if (last == end)
+    {
+        *real               = ld;
+        return KVIN_VAL_REAL;
+    }
+    return KVIN_VAL_NONE;
+}
 
 static int pkvinError(KVINParser* prs)
 {
@@ -361,7 +395,8 @@ static int pkvinCommonPath(KVINParser* prs)
             prs->state  = KVIN_PAR_ERROR;
             return 0;
         }
-        prs->value.integer  = strtoull(prs->lexer.lbeg, 0, 0);
+        prs->value.type     = KVIN_VAL_INTEGER;
+        prs->value.integer  = kvin_strtoull(prs->lexer.lbeg, 0, 0);
         if (!kvinLexNext(&prs->lexer))
         {
             prs->state  = KVIN_PAR_ERROR;
@@ -387,7 +422,8 @@ static int pkvinCommonPath(KVINParser* prs)
             prs->value.end          = prs->lexer.lend;
             break;
         case KVIN_LEX_NUMBERLIKE    :
-            prs->value.integer      = strtoull(prs->lexer.lbeg, 0, 0);
+            prs->value.type         = KVIN_VAL_INTEGER;
+            prs->value.integer      = kvin_strtoull(prs->lexer.lbeg, 0, 0);
             break;
         default                     : break;
         }
@@ -440,8 +476,13 @@ static int pkvinValue(KVINParser* prs)
         prs->value.end          = prs->lexer.lend;
         break;
     case KVIN_LEX_NUMBERLIKE    :
-        prs->value.type         = KVIN_VAL_INTEGER;
-        prs->value.integer      = strtoull(prs->lexer.lbeg, 0, 0);
+        prs->value.type         = pkvinAnalyzeNumberLike(prs->lexer.lbeg, prs->lexer.lend, &prs->value.integer, &prs->value.real);
+        if (prs->value.type == KVIN_VAL_NONE)
+        {
+            prs->state          = KVIN_PAR_ERROR;
+            prs->action         = KVIN_ACT_ERROR;
+            return 0;
+        }
         break;
     case KVIN_LEX_BSTRING       :
         prs->value.type         = KVIN_VAL_BSTRING;

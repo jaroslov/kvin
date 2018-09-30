@@ -109,6 +109,12 @@ int main(int argc, char *argv[])
                             "\n"
                             "// james\n"
                             "tim = jackson // hole\n" },
+
+        { KVIN_PAR_DONE,    "bob = 12.3501\n" },
+
+        { KVIN_PAR_DONE,    "bob = 12.3501e-1\n" },
+
+        { KVIN_PAR_ERROR,   "bob = 12.3501e-1.4\n" },
     };
 
     int numExpPassed    = 0;
@@ -144,11 +150,12 @@ int main(int argc, char *argv[])
                 break;
             case KVIN_ACT_SETVALUE      :
                 fprintf(stdout, "    %s ", sACTION[parser.action]);
-                switch (parser.lexer.lex)
+                switch (parser.value.type)
                 {
-                case KVIN_LEX_IDENTIFIER    : fprintf(stdout, "%.*s\n", (int)(parser.value.end - parser.value.begin), parser.value.begin); break;
-                case KVIN_LEX_NUMBERLIKE    : fprintf(stdout, "%lld\n", parser.value.integer); break;
-                case KVIN_LEX_BSTRING       : fprintf(stdout, "'%.*s'\n", (int)(parser.value.end - parser.value.begin), parser.value.begin); break;
+                case KVIN_VAL_IDENTIFIER    : fprintf(stdout, "%.*s\n", (int)(parser.value.end - parser.value.begin), parser.value.begin); break;
+                case KVIN_VAL_INTEGER       : fprintf(stdout, "%lld\n", parser.value.integer); break;
+                case KVIN_VAL_REAL          : fprintf(stdout, "%Lf\n", parser.value.real); break;
+                case KVIN_VAL_BSTRING       : fprintf(stdout, "'%.*s'\n", (int)(parser.value.end - parser.value.begin), parser.value.begin); break;
                 default                     : fprintf(stdout, "??%s\n", "?");
                 }
             case KVIN_ACT_NONE          : break;
