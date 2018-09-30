@@ -30,6 +30,46 @@ typedef struct TEST
     const char*     kvin;
 } TEST;
 
+typedef struct MyKVIN
+{
+    char X[1];
+} MyKVIN;
+
+int mySetAtRoot(MyKVIN* handle, KVINValue)
+{
+    return 0;
+}
+
+int mySetNextAxis(MyKVIN* handle, KVINValue)
+{
+    return 0;
+}
+
+int myRelPath(MyKVIN* handle)
+{
+    return 0;
+}
+
+int myAutonumber(MyKVIN* handle)
+{
+    return 0;
+}
+
+int mySetValue(MyKVIN* handle, KVINValue)
+{
+    return 0;
+}
+
+int myError(MyKVIN* handle, KVINParser*)
+{
+    return 0;
+}
+
+int myDone(MyKVIN* handle)
+{
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     static const TEST EXS[] =
@@ -169,6 +209,29 @@ int main(int argc, char *argv[])
         numExpFailed    += !!(EXS[EE].state == KVIN_PAR_ERROR);
         numPassed       += !!(parser.state == EXS[EE].state);
         numFailed       += !!(parser.state != EXS[EE].state);
+    }
+
+    for (int EE = 0; EE < (int)sizeof(EXS)/sizeof(EXS[0]); ++EE)
+    {
+        KVINActor actor     = { };
+        MyKVIN myKvin       = { };
+        kvinInitParser(&actor.parser, EXS[EE].kvin, EXS[EE].kvin + (int)strlen(EXS[EE].kvin));
+
+        actor.handle        = (void*)&myKvin;
+        actor.SetAtRoot     = (kvinSetAtRootFptr)&mySetAtRoot;
+        actor.SetNextAxis   = (kvinSetNextAxisFptr)&mySetNextAxis;
+        actor.RelPath       = (kvinRelPathFptr)&myRelPath;
+        actor.Autonumber    = (kvinAutonumberFptr)&myAutonumber;
+        actor.SetValue      = (kvinSetValueFptr)&mySetValue;
+        actor.Error         = (kvinErrorFptr)&myError;
+        actor.Done          = (kvinDoneFptr)&myDone;
+
+        fprintf(stdout, "%s expects %s\n", EXS[EE].kvin, sPARSES[EXS[EE].state]);
+        kvinParse(&actor);
+        numExpPassed    += !!(EXS[EE].state == KVIN_PAR_DONE);
+        numExpFailed    += !!(EXS[EE].state == KVIN_PAR_ERROR);
+        numPassed       += !!(actor.parser.state == EXS[EE].state);
+        numFailed       += !!(actor.parser.state != EXS[EE].state);
     }
 
     fprintf(stdout,
