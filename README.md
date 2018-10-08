@@ -1,7 +1,15 @@
 # kvin
 Key Value Inline Notation
 
-KVIN is a structured data format. The grammar is:
+KVIN is a structured data format. The main goal of KVIN is to make sure that there is a 1:1 mapping between KVIN object keys (and, to a lesser extent, values) and the representation of those keys in C, as legal C code. For instance, in JSON, the key "foo bar" is legal, but if represented as a member of a `struct` in C requires a name-mangling phase. Name-mangling is hard, so KVIN is designed to prevent it. (This is side-stepping the entire question of "why not use a string-keyed hash table": I don't want to!)
+
+KVIN's most obvious ancestor is TOML. There are a few, major, differences between KVIN and TOML that make them (fundamentally) incompatible. Briefly:
+
+1. KVIN doesn't support the `[...]` notation for groups;
+2. KVIN doesn't allow arbitrary strings for keys --- only valid c-identifiers and integers; and,
+3. KVIN only allows a restricted subset of values (integers, reals, c-identifiers, and byte-strings).
+
+The grammar of KVIN is roughly:
 
          TOPLEVEL ::= KEYVALS
           KEYVALS ::= KEYVALS KEYVAL
