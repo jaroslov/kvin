@@ -1,0 +1,13 @@
+fooj                        = bar
+foo.bar                     = baz
+   .baz                     = quux
+   .flup                    = jimmy
+   .jake[0]                 = z0
+        [1]                 = 1
+        [2]                 = z2
+        [3]                 = z3
+        [14]                = 4
+  ..qup[10].foo             = "hello foo"
+jackson.hole.5              = 10
+fuo.flup.flip.flop          = _humbug
+fuo.flup.flip.flag..flop    = _bugbug
